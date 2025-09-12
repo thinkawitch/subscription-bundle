@@ -1,0 +1,57 @@
+{
+    "name": "thinkawitch/subscription-bundle",
+    "type": "symfony-bundle",
+    "description": "Subscriptions for Symfony",
+    "keywords": [
+        "subscription",
+        "product"
+    ],
+    "license": "unlicense",
+    "authors": [
+        {
+            "name": "Andrew Sinkevitch",
+            "email": "andrew.sinkevitch@gmail.com",
+            "role": "developer"
+        },
+        {
+            "name": "David Pérez Terol",
+            "email": "davidtxnet@gmail.com",
+            "role": "original developer of bundle for symfony 3/4"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Thinkawitch\\SubscriptionBundle\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Thinkawitch\\SubscriptionBundle\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "require": {
+        "php": ">=8.1",
+        "symfony/console": "6.4.*",
+        "symfony/event-dispatcher": "6.4.*",
+        "symfony/framework-bundle": "6.4.*",
+        "symfony/monolog-bundle": "^3.1",
+        "symfony/security-bundle": "6.4.*",
+        "symfony/yaml": "6.4.*"
+    },
+    "require-dev": {
+        "ext-uopz": ">=7",
+        "mockery/mockery": "^1.6",
+        "slope-it/clock-mock": "^0.5.0",
+        "symfony/test-pack": "^1.1"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "1.0.x-dev"
+        }
+    }
+}

@@ -1,0 +1,37 @@
+services:
+
+    thinkawitch.subscription.registry:
+        class: Thinkawitch\SubscriptionBundle\Registry\SubscriptionRegistry
+
+    thinkawitch.subscription.manager:
+        class: Thinkawitch\SubscriptionBundle\Subscription\SubscriptionManager
+        arguments:
+            - "@thinkawitch.subscription.registry"
+            - "@thinkawitch.subscription.repository.subscription"
+            - "@event_dispatcher"
+            - "%thinkawitch_subscription.config%"
+    Thinkawitch\SubscriptionBundle\Subscription\SubscriptionManager:
+        alias: thinkawitch.subscription.manager
+
+    # console commands
+    Thinkawitch\SubscriptionBundle\Command\ActivateCommand:
+        arguments:
+            - "@doctrine.orm.entity_manager"
+            - "@thinkawitch.subscription.repository.subscription"
+            - "@thinkawitch.subscription.manager"
+        tags: [ 'console.command' ]
+
+    Thinkawitch\SubscriptionBundle\Command\CancelCommand:
+        arguments:
+            - "@doctrine.orm.entity_manager"
+            - "@thinkawitch.subscription.repository.subscription"
+            - "@thinkawitch.subscription.manager"
+        tags: [ 'console.command' ]
+
+    Thinkawitch\SubscriptionBundle\Command\ExpireCommand:
+        arguments:
+            - "@doctrine.orm.entity_manager"
+            - "@thinkawitch.subscription.repository.subscription"
+            - "@thinkawitch.subscription.manager"
+        tags: [ 'console.command' ]
+

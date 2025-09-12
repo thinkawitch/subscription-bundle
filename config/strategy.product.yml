@@ -1,0 +1,21 @@
+services:
+
+    thinkawitch.subscription.strategy.product.abstract:
+        class: Thinkawitch\SubscriptionBundle\Strategy\Product\AbstractProductStrategy
+        abstract: true
+        arguments:
+            $productRepository: '@thinkawitch.subscription.repository.product'
+            $subscriptionRepository: '@thinkawitch.subscription.repository.subscription'
+            $logger: '@logger'
+
+    thinkawitch.subscription.strategy.product.default:
+        class: Thinkawitch\SubscriptionBundle\Strategy\Product\ProductDefaultStrategy
+        parent: thinkawitch.subscription.strategy.product.abstract
+        tags:
+            - { name: subscription.strategy, type: product, strategy: default }
+
+    thinkawitch.subscription.strategy.product.exact:
+        class: Thinkawitch\SubscriptionBundle\Strategy\Product\ProductExactStrategy
+        parent: thinkawitch.subscription.strategy.product.abstract
+        tags:
+            - { name: subscription.strategy, type: product, strategy: exact }
