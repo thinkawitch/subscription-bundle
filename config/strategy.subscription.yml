@@ -4,6 +4,7 @@ services:
         class: Thinkawitch\SubscriptionBundle\Strategy\Subscription\SubscriptionEndLastStrategy
         arguments:
             - "%thinkawitch_subscription.config.subscription.class%"
+            - "%thinkawitch_subscription.config.subscription_interval.class%"
             - "@thinkawitch.subscription.strategy.product.default"
         tags:
             - { name: thinkawitch.subscription.strategy, type: subscription, strategy: end_last_default }
@@ -13,6 +14,7 @@ services:
         class: Thinkawitch\SubscriptionBundle\Strategy\Subscription\SubscriptionEndLastStrategy
         arguments:
             - "%thinkawitch_subscription.config.subscription.class%"
+            - "%thinkawitch_subscription.config.subscription_interval.class%"
             - "@thinkawitch.subscription.strategy.product.exact"
         tags:
             - { name: thinkawitch.subscription.strategy, type: subscription, strategy: end_last_exact }

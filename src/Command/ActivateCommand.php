@@ -13,7 +13,7 @@ class ActivateCommand extends AbstractCommand
         parent::configure();
         $this
             ->setName(ThinkawitchSubscriptionBundle::COMMAND_NAMESPACE.':activate')
-            ->setDescription('Activate a subscription that was expired/disabled');
+            ->setDescription('Activate a subscription that was not-active/disabled');
     }
 
     protected function action(SubscriptionInterface $subscription): void

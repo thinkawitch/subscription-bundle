@@ -10,3 +10,4 @@ Bundle to make it easier to manage subscriptions in your application: create, re
 ## Resources
 
 - [terox/SubscriptionBundle](https://github.com/terox/SubscriptionBundle) the original bundle made for Symfony 3 / 4
+- [shapecode/subscription-bundle](https://github.com/shapecode/subscription-bundle) other bundle you maybe interested in

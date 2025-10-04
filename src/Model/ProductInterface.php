@@ -20,5 +20,5 @@ interface ProductInterface
 
     public function getStrategy(): string;
 
-    public function getNextRenewalProduct(): ?ProductInterface;
+    public function getNextRenewalProduct(): ?self;
 }

@@ -41,7 +41,7 @@ class ProductDefaultStrategy extends AbstractProductStrategy
     }
 
     /**
-     * Get default product in case of that current product is not valid.
+     * Get default product when the requested one is not valid.
      *
      * @return ProductInterface
      * @throws ProductFinalNotValidException

@@ -25,11 +25,10 @@ class ExpireCommandTest extends CommandTestCase
         $command = $application->find(ThinkawitchSubscriptionBundle::COMMAND_NAMESPACE.':expire');
 
         $commandTester = new CommandTester($command);
-        $commandTester->execute(array(
+        $commandTester->execute([
             'command'  => $command->getName(),
             'id'       => 1,
-            'reason'   => Reason::expire->value
-        ));
+        ]);
 
         $output = $commandTester->getDisplay();
         $this->assertStringContainsString('Subscription set expired', $output);

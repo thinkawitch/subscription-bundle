@@ -2,9 +2,12 @@
 
 namespace Thinkawitch\SubscriptionBundle\Strategy\Subscription;
 
+use Thinkawitch\SubscriptionBundle\Exception\Strategy\CreateSubscriptionException;
+use Thinkawitch\SubscriptionBundle\Exception\Strategy\RenewSubscriptionException;
 use Thinkawitch\SubscriptionBundle\Exception\Subscription\PermanentSubscriptionException;
 use Thinkawitch\SubscriptionBundle\Model\ProductInterface;
 use Thinkawitch\SubscriptionBundle\Model\SubscriptionInterface;
+use Thinkawitch\SubscriptionBundle\Model\SubscriptionIntervalInterface;
 
 /**
  * End Last Subscription Strategy.
@@ -15,58 +18,62 @@ use Thinkawitch\SubscriptionBundle\Model\SubscriptionInterface;
 class SubscriptionEndLastStrategy extends AbstractSubscriptionStrategy
 {
     /**
-     * @throws PermanentSubscriptionException
+     * @throws CreateSubscriptionException
      */
-    public function createSubscription(ProductInterface $product, array $subscriptions = []): SubscriptionInterface
+    public function createSubscription(
+        ProductInterface $product,
+        ?SubscriptionInterface $continueFromSubscription=null,
+    ): SubscriptionInterface
     {
-        if (empty($subscriptions)) {
-            return $this->create($this->createCurrentDate(), $product);
+        if (!$continueFromSubscription) {
+            return $this->_createSubscription($product, $this->createCurrentDate());
         }
 
-        $startDate = null;
-        foreach ($subscriptions as $subscription) {
-
-            // subscription is permanent, don't continue
-            if (null === $subscription->getEndDate()) {
-                $startDate = null;
-                break;
-            }
-
-            // catch the subscription with higher end date
-            if (null === $startDate || $startDate < $subscription->getEndDate()) {
-                $startDate = $subscription->getEndDate();
-            }
+        if ($continueFromSubscription->isActive() && $continueFromSubscription->getEndDate() === null) {
+            $message = 'Only one permanent subscription per product is allowed.';
+            $exception = new PermanentSubscriptionException($message);
+            throw new CreateSubscriptionException($message, previous: $exception);
         }
 
-        // it's a permanent subscription
-        if (null === $startDate) {
-
-            if (count($subscriptions) > 1) {
-                throw new PermanentSubscriptionException(
-                    'More than one subscription per product is not allowed when there is a permanent subscription
-                    enabled. Maybe you are mixing different strategies?'
-                );
-            }
-
-            return $subscriptions[0];
-        }
+        $startDate = $continueFromSubscription->getEndDate();
 
         // check if subscription is expired
         if (time() > $startDate->getTimestamp()) {
             $startDate = $this->createCurrentDate();
         }
 
-        // date should use the \DateTimeImmutable (a little fix)
-        if (!$startDate instanceof \DateTimeImmutable) {
-            $startDate = (new \DateTimeImmutable())->setTimestamp($startDate->getTimestamp());
-        }
-
-        return $this->create($startDate, $product);
+        return $this->_createSubscription($product, $startDate);
     }
 
-    private function create(\DateTimeImmutable $startDate, ProductInterface $product): SubscriptionInterface
+    /**
+     * @throws RenewSubscriptionException
+     */
+    public function renewSubscription(ProductInterface $product, SubscriptionInterface $subscription): void
     {
-        $endDate = null !== $product->getDuration() ? $startDate->add($product->getDuration()) : null;
+        if ($subscription->getEndDate() === null) {
+            $message = 'Permanent subscription cannot be renewed.';
+            $exception = new PermanentSubscriptionException($message);
+            throw new RenewSubscriptionException($message, previous: $exception);
+        }
+
+        $startDate = $subscription->getEndDate();
+
+        // check if subscription is expired
+        if (time() > $startDate->getTimestamp()) {
+            $startDate = $this->createCurrentDate();
+        }
+
+        // add new interval
+        $interval = $this->_createSubscriptionInterval($startDate, $this->createEndDate($startDate, $product));
+        $subscription->addInterval($interval);
+
+        // update end date
+        $subscription->setEndDate($interval->getEndDate());
+    }
+
+    private function _createSubscription(ProductInterface $product, \DateTimeImmutable $startDate): SubscriptionInterface
+    {
+        $endDate = $this->createEndDate($startDate, $product);
 
         // create the new subscription
         $subscription = $this->createSubscriptionInstance();
@@ -75,6 +82,15 @@ class SubscriptionEndLastStrategy extends AbstractSubscriptionStrategy
         $subscription->setEndDate($endDate);
         $subscription->setAutoRenewal($product->isAutoRenewal());
 
+        // add interval
+        $interval = $this->_createSubscriptionInterval($startDate, $endDate);
+        $subscription->addInterval($interval);
+
         return $subscription;
+    }
+
+    private function _createSubscriptionInterval(\DateTimeImmutable $startDate, ?\DateTimeImmutable $endDate): SubscriptionIntervalInterface
+    {
+        return $this->createSubscriptionIntervalInstance()->setStartDate($startDate)->setEndDate($endDate);
     }
 }

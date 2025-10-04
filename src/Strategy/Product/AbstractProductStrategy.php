@@ -112,7 +112,7 @@ abstract class AbstractProductStrategy implements ProductStrategyInterface
         }
 
         // calculate the current quote
-        $currentQuote = $this->subscriptionRepository->getNumberOfSubscriptionsByProduct($product);
+        $currentQuote = $this->getSubscriptionRepository()->getNumberOfSubscriptionsByProduct($product);
 
         if ($currentQuote < $product->getQuota()) {
             return;

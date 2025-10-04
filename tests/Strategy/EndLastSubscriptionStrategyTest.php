@@ -2,11 +2,13 @@
 
 namespace Thinkawitch\SubscriptionBundle\Tests\Strategy;
 
+use Thinkawitch\SubscriptionBundle\Exception\Strategy\CreateSubscriptionException;
 use Thinkawitch\SubscriptionBundle\Exception\Subscription\PermanentSubscriptionException;
 use Thinkawitch\SubscriptionBundle\Model\ProductInterface;
 use Thinkawitch\SubscriptionBundle\Model\SubscriptionInterface;
 use Thinkawitch\SubscriptionBundle\Strategy\Subscription\SubscriptionEndLastStrategy;
 use Thinkawitch\SubscriptionBundle\Tests\AbstractTestCaseBase;
+use Thinkawitch\SubscriptionBundle\Tests\Mock\SubscriptionIntervalMock;
 use Thinkawitch\SubscriptionBundle\Tests\Mock\SubscriptionMock;
 
 class EndLastSubscriptionStrategyTest extends AbstractTestCaseBase
@@ -23,11 +25,12 @@ class EndLastSubscriptionStrategyTest extends AbstractTestCaseBase
 
         // expired subscription
         $subscription1 = \Mockery::mock(SubscriptionInterface::class);
+        $subscription1->shouldReceive('isActive')->andReturn(true);
         $subscription1->shouldReceive('getEndDate')->andReturn(new \DateTimeImmutable('2017-04-15 16:05:10'));
 
         // strategy
-        $strategy = new SubscriptionEndLastStrategy(SubscriptionMock::class, $this->defaultProductStrategy);
-        $subscription = $strategy->createSubscription($product, [$subscription1]);
+        $strategy = $this->createDefaultProductStrategy();
+        $subscription = $strategy->createSubscription($product, $subscription1);
 
         $this->assertEquals(
             $currentDate->format('Y-m-d H:i:s'),
@@ -54,11 +57,12 @@ class EndLastSubscriptionStrategyTest extends AbstractTestCaseBase
 
         // active subscription, ends in 5 days
         $subscription1 = \Mockery::mock(SubscriptionInterface::class);
+        $subscription1->shouldReceive('isActive')->andReturn(true);
         $subscription1->shouldReceive('getEndDate')->andReturn($currentDate->modify('+5 days'));
 
         // strategy, renew subscription +10 days
-        $strategy = new SubscriptionEndLastStrategy(SubscriptionMock::class, $this->defaultProductStrategy);
-        $subscription = $strategy->createSubscription($product, [$subscription1]);
+        $strategy = $this->createDefaultProductStrategy();
+        $subscription = $strategy->createSubscription($product, $subscription1);
 
         $this->assertEquals(
             $currentDate->modify('+5 days')->format('Y-m-d H:i:s'),
@@ -81,7 +85,7 @@ class EndLastSubscriptionStrategyTest extends AbstractTestCaseBase
         $product->shouldReceive('getDuration')->andReturn(null);
 
         // permanent subscription
-        $strategy = new SubscriptionEndLastStrategy(SubscriptionMock::class, $this->defaultProductStrategy);
+        $strategy = $this->createDefaultProductStrategy();
         $subscription = $strategy->createSubscription($product);
 
         $this->assertEquals(
@@ -93,25 +97,31 @@ class EndLastSubscriptionStrategyTest extends AbstractTestCaseBase
 
     public function testFailOnMoreThanOnePermanentSubscriptionByProduct()
     {
-        $this->expectException(PermanentSubscriptionException::class);
+        $this->expectException(CreateSubscriptionException::class);
 
         // active subscriptions
         $subscription1 = \Mockery::mock(SubscriptionInterface::class);
-        $subscription1->shouldReceive('getName')->andReturn('Subscription1 with product A');
-        $subscription1->shouldReceive('getProduct')->andReturn($this->product);
+        $subscription1->shouldReceive('getName')->andReturn('Subscription1 with product 2');
+        $subscription1->shouldReceive('getProduct')->andReturn($this->product2);
+        $subscription1->shouldReceive('isActive')->andReturn(true);
         $subscription1->shouldReceive('getEndDate')->andReturn(null);
 
         $subscription2 = \Mockery::mock(SubscriptionInterface::class);
-        $subscription2->shouldReceive('getName')->andReturn('Subscription2 with product A');
-        $subscription2->shouldReceive('getProduct')->andReturn($this->product);
+        $subscription2->shouldReceive('getName')->andReturn('Subscription2 with product 2');
+        $subscription2->shouldReceive('getProduct')->andReturn($this->product2);
+        $subscription2->shouldReceive('isActive')->andReturn(true);
         $subscription2->shouldReceive('getEndDate')->andReturn(null);
 
-        $strategy = new SubscriptionEndLastStrategy(SubscriptionMock::class, $this->defaultProductStrategy);
-        $strategy->createSubscription($this->product, [$subscription1, $subscription2]);
+        $strategy = $this->createDefaultProductStrategy();
+        // should check if there are multiple permanent subscriptions in db
+        //$strategy->createSubscription($this->product, [$subscription1, $subscription2]);
+        $strategy->createSubscription($this->product2, $subscription1);
     }
 
-    public function testReturnSameSubscriptionInstanceOnPermanentSubscription()
+    public function OFF_testReturnSameSubscriptionInstanceOnPermanentSubscription()
     {
+        // in new logic this is not needed
+
         // product X
         $productX = \Mockery::mock(ProductInterface::class);
 
@@ -120,15 +130,25 @@ class EndLastSubscriptionStrategyTest extends AbstractTestCaseBase
         $subscription1->shouldReceive('getId')->andReturn(1);
         $subscription1->shouldReceive('getName')->andReturn('Subscription1 with product X');
         $subscription1->shouldReceive('getProduct')->andReturn($productX);
+        $subscription1->shouldReceive('isActive')->andReturn(true);
         $subscription1->shouldReceive('getEndDate')->andReturn(null);
 
-        $strategy = new SubscriptionEndLastStrategy(SubscriptionMock::class, $this->defaultProductStrategy);
-        $subscription2 = $strategy->createSubscription($this->product, [$subscription1]);
+        $strategy = $this->createDefaultProductStrategy();
+        $subscription2 = $strategy->createSubscription($this->product2, $subscription1);
 
         $this->assertSame(
             $subscription1,
             $subscription2,
             'both subscriptions should be same one object'
+        );
+    }
+
+    private function createDefaultProductStrategy(): SubscriptionEndLastStrategy
+    {
+        return new SubscriptionEndLastStrategy(
+            SubscriptionMock::class,
+            SubscriptionIntervalMock::class,
+            $this->defaultProductStrategy,
         );
     }
 }

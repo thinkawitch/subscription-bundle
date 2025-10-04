@@ -22,6 +22,7 @@ class ThinkawitchSubscriptionExtension extends Extension
         $container->setParameter('thinkawitch_subscription.config', $config);
         $container->setParameter('thinkawitch_subscription.config.subscription.class', $config['subscription_class']);
         $container->setParameter('thinkawitch_subscription.config.subscription.repository', $config['subscription_repository']);
+        $container->setParameter('thinkawitch_subscription.config.subscription_interval.class', $config['subscription_interval_class']);
         $container->setParameter('thinkawitch_subscription.config.product.repository', $config['product_repository']);
 
         if (!empty($config['logger'])) {

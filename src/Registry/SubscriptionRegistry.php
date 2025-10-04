@@ -2,7 +2,7 @@
 
 namespace Thinkawitch\SubscriptionBundle\Registry;
 
-use Thinkawitch\SubscriptionBundle\Exception\StrategyNotFoundException;
+use Thinkawitch\SubscriptionBundle\Exception\Strategy\StrategyNotFoundException;
 use Thinkawitch\SubscriptionBundle\Strategy\Subscription\SubscriptionStrategyInterface;
 
 class SubscriptionRegistry

@@ -3,14 +3,14 @@
 namespace Thinkawitch\SubscriptionBundle\Tests\Subscription;
 
 use Symfony\Component\EventDispatcher\EventDispatcher;
-use Thinkawitch\SubscriptionBundle\Exception\Subscription\PermanentSubscriptionException;
+use Thinkawitch\SubscriptionBundle\Exception\Strategy\CreateSubscriptionException;
 use Thinkawitch\SubscriptionBundle\Exception\Subscription\SubscriptionRenewalException;
 use Thinkawitch\SubscriptionBundle\Model\ProductInterface;
-use Thinkawitch\SubscriptionBundle\Model\SubscriptionInterface;
 use Thinkawitch\SubscriptionBundle\Registry\SubscriptionRegistry;
 use Thinkawitch\SubscriptionBundle\Strategy\Subscription\SubscriptionEndLastStrategy;
 use Thinkawitch\SubscriptionBundle\Subscription\SubscriptionManager;
 use Thinkawitch\SubscriptionBundle\Tests\AbstractTestCaseBase;
+use Thinkawitch\SubscriptionBundle\Tests\Mock\SubscriptionIntervalMock;
 use Thinkawitch\SubscriptionBundle\Tests\Mock\SubscriptionMock;
 
 class SubscriptionManagerTest extends AbstractTestCaseBase
@@ -21,42 +21,38 @@ class SubscriptionManagerTest extends AbstractTestCaseBase
     {
         parent::setUp();
 
-        // product
-        $this->product->shouldReceive('getName')->andReturn('Test non-default product');
-        $this->product->shouldReceive('getDuration')->andReturn($this->interval1m);
-        $this->product->shouldReceive('isDefault')->andReturn(false);
-        $this->product->shouldReceive('getExpirationDate')->andReturn(null);
-        $this->product->shouldReceive('getQuota')->andReturn(null);
-        $this->product->shouldReceive('isAutoRenewal')->andReturn(false);
-
         // Repositories
-        $this->productRepository->shouldReceive('findDefaultProduct')->andReturn($this->product);
         $this->subscriptionRepository->shouldReceive('getNumberOfSubscriptionsByProduct')->andReturn(50);
 
         // Registry
         $registry = new SubscriptionRegistry();
         $registry->addStrategy(
-            new SubscriptionEndLastStrategy(SubscriptionMock::class, $this->defaultProductStrategy),
+            new SubscriptionEndLastStrategy(
+                SubscriptionMock::class,
+                SubscriptionIntervalMock::class,
+                $this->defaultProductStrategy,
+            ),
             'end_last_default'
+        );
+        $registry->addStrategy(
+            new SubscriptionEndLastStrategy(
+                SubscriptionMock::class,
+                SubscriptionIntervalMock::class,
+                $this->exactProductStrategy,
+            ),
+            'end_last_exact'
         );
 
         $eventDispatcher = \Mockery::mock(EventDispatcher::class);
         $eventDispatcher->shouldReceive('dispatch');
 
         // Manager
-        $this->subscriptionManager = new SubscriptionManager($registry, $this->subscriptionRepository, $eventDispatcher, [
-            'reasons' => [
-                'renew' => 'RENEW_TEXT',
-                'expire' => 'EXPIRE_TEXT',
-                'stop_auto_renew' => 'STOP_AUTO_RENEW_TEXT',
-                'cancel' => 'CANCEL_TEXT',
-            ]
-        ]);
+        $this->subscriptionManager = new SubscriptionManager($registry, $this->subscriptionRepository, $eventDispatcher, []);
     }
 
     public function testConcatNewSubscriptionWithPrevious()
     {
-        $subscription = $this->subscriptionManager->create($this->product, $this->user1);
+        $subscription = $this->subscriptionManager->create($this->product2, $this->user1);
 
         $this->assertEquals(
             $this->subscription1EndDate->modify('+15 days')->add($this->interval1m)->format('Y-m-d H:i:s'),
@@ -78,7 +74,7 @@ class SubscriptionManagerTest extends AbstractTestCaseBase
 
     public function testConcatNewSubscriptionWithOverlapedSubscriptions()
     {
-        $subscription = $this->subscriptionManager->create($this->product, $this->user2);
+        $subscription = $this->subscriptionManager->create($this->product2, $this->user2);
 
         $this->assertEquals(
             $this->subscription2EndDate->modify('+7 day')->add($this->interval1m)->format('Y-m-d H:i:s'),
@@ -99,33 +95,29 @@ class SubscriptionManagerTest extends AbstractTestCaseBase
         );
     }
 
-    public function testSameSubscriptionOnPermanentSubscription()
+    public function testCreateNewSubscriptionOnActivePermanentSubscription()
     {
-        $subscription = $this->subscriptionManager->create($this->product, $this->user3);
+        $this->expectException(CreateSubscriptionException::class);
+        $this->expectExceptionMessage('Only one permanent subscription per product is allowed.');
 
-        $this->assertInstanceOf(SubscriptionInterface::class, $subscription);
-        $this->assertEquals(null, $subscription->getEndDate());
-        $this->assertSame($this->permanentSubscription1, $subscription);
-        $this->assertSame($this->user3, $subscription->getUser());
-    }
+        $subscription = $this->subscriptionManager->create($this->product2, $this->user3);
 
-    public function testSameSubscriptionOnPermanentWithFiniteSubscriptions()
-    {
-        $this->expectException(PermanentSubscriptionException::class);
-
-        $this->subscriptionManager->create($this->product, $this->user4);
+//        $this->assertInstanceOf(SubscriptionInterface::class, $subscription);
+//        $this->assertEquals(null, $subscription->getEndDate());
+//        $this->assertSame($this->subscription6U3perm, $subscription);
+//        $this->assertSame($this->user3, $subscription->getUser());
     }
 
     public function testActivateSubscriptionWithValidProduct()
     {
         $subscription = new SubscriptionMock();
         $subscription->setActive(false);
-        $subscription->setProduct($this->product);
+        $subscription->setProduct($this->product2);
 
         $this->subscriptionManager->activate($subscription);
 
-        $this->assertEquals(true, $subscription->getActive());
-        $this->assertSame($this->product, $subscription->getProduct());
+        $this->assertEquals(true, $subscription->isActive());
+        $this->assertSame($this->product2, $subscription->getProduct());
     }
 
     public function testActivateSubscriptionWithExpiredProductAndDefault()
@@ -142,8 +134,8 @@ class SubscriptionManagerTest extends AbstractTestCaseBase
 
         $this->subscriptionManager->activate($subscription);
 
-        $this->assertEquals(true, $subscription->getActive());
-        $this->assertSame($this->product, $subscription->getProduct());
+        $this->assertEquals(true, $subscription->isActive());
+        $this->assertSame($this->product1, $subscription->getProduct());
     }
 
     public function testActivateSubscriptionWithQuoteExceededAndDefault()
@@ -160,8 +152,8 @@ class SubscriptionManagerTest extends AbstractTestCaseBase
 
         $this->subscriptionManager->activate($subscription);
 
-        $this->assertEquals(true, $subscription->getActive());
-        $this->assertSame($this->product, $subscription->getProduct());
+        $this->assertEquals(true, $subscription->isActive());
+        $this->assertSame($this->product1, $subscription->getProduct());
     }
 
     public function testActivateSubscriptionWithoutQuoteExceededAndDefault()
@@ -179,7 +171,7 @@ class SubscriptionManagerTest extends AbstractTestCaseBase
 
         $this->subscriptionManager->activate($subscription);
 
-        $this->assertEquals(true, $subscription->getActive());
+        $this->assertEquals(true, $subscription->isActive());
         $this->assertEquals(false, $subscription->isAutoRenewal());
         $this->assertSame($productQuota, $subscription->getProduct());
     }
@@ -188,7 +180,7 @@ class SubscriptionManagerTest extends AbstractTestCaseBase
     {
         $subscription = new SubscriptionMock();
         $subscription->setActive(true);
-        $subscription->setProduct($this->product);
+        $subscription->setProduct($this->product2);
         $subscription->setAutoRenewal(false);
         $subscription->setEndDate(null);
 
@@ -202,7 +194,7 @@ class SubscriptionManagerTest extends AbstractTestCaseBase
     {
         $subscription = new SubscriptionMock();
         $subscription->setActive(true);
-        $subscription->setProduct($this->product);
+        $subscription->setProduct($this->product2);
         $subscription->setAutoRenewal(false);
         $subscription->setEndDate(new \DateTimeImmutable());
 
@@ -216,12 +208,12 @@ class SubscriptionManagerTest extends AbstractTestCaseBase
     {
         $subscription = new SubscriptionMock();
         $subscription->setActive(true);
-        $subscription->setProduct($this->product);
+        $subscription->setProduct($this->product2);
         $subscription->setAutoRenewal(true);
         $subscription->setEndDate(new \DateTimeImmutable());
 
         $this->expectException(SubscriptionRenewalException::class);
-        $this->expectExceptionMessage('The product "'.$this->product->getName().'" is not auto-renewal. Maybe is disabled?');
+        $this->expectExceptionMessage('The product "'.$this->product2->getName().'" is not auto-renewal. Maybe is disabled?');
 
         $this->subscriptionManager->renew($subscription);
     }
@@ -233,12 +225,13 @@ class SubscriptionManagerTest extends AbstractTestCaseBase
         $product->shouldReceive('getName')->andReturn('Test non-default product without quota exceeded');
         $product->shouldReceive('getDuration')->andReturn($this->interval1m);
         $product->shouldReceive('isDefault')->andReturn(false);
-        $product->shouldReceive('isDisabled')->andReturn(false);
+        $product->shouldReceive('isDisabled')->andReturn(true);
         $product->shouldReceive('getExpirationDate')->andReturn(null);
         $product->shouldReceive('getQuota')->andReturn(null);
         $product->shouldReceive('isAutoRenewal')->andReturn(true);
         $product->shouldReceive('getNextRenewalProduct')->andReturn(null);
         $product->shouldReceive('getStrategy')->andReturn('end_last_default');
+
 
         // subscription to renew
         $subscription = new SubscriptionMock();
@@ -247,18 +240,24 @@ class SubscriptionManagerTest extends AbstractTestCaseBase
         $subscription->setAutoRenewal(true);
         $subscription->setEndDate(new \DateTimeImmutable());
 
-        // no current active subscriptions
-        $this->subscriptionRepository->shouldReceive('findSubscriptionsByProduct')->andReturn([]);
+        // No current active subscription
+        $this->subscriptionRepository
+            ->shouldReceive('findActiveSubscription')
+            //->with($product, $subscription->getUser())
+            ->andReturn(null);
 
         // renew subscription
         $newSubscription = $this->subscriptionManager->renew($subscription);
 
+        $this->assertNotSame($subscription, $newSubscription);
+        $this->assertNotSame($subscription->getProduct(), $newSubscription->getProduct());
+        $this->assertSame($subscription->getUser(), $newSubscription->getUser());
+
         $this->assertEquals(false, $subscription->isActive());
-        $this->assertEquals('RENEW_TEXT', $subscription->getReason());
+        $this->assertEquals(true, $subscription->isRenewed());
 
         $this->assertEquals(true, $newSubscription->isActive());
         $this->assertEquals(true, $newSubscription->isAutoRenewal());
-        $this->assertSame($subscription->getUser(), $newSubscription->getUser());
     }
 
     public function testRenewSubscriptionWithSameProduct()
@@ -282,23 +281,32 @@ class SubscriptionManagerTest extends AbstractTestCaseBase
         $subscription->setAutoRenewal(true);
         $subscription->setEndDate(new \DateTimeImmutable());
 
-        // no current active subscriptions
-        $this->subscriptionRepository->shouldReceive('findSubscriptionsByProduct')->andReturn([]);
-
         // renew subscription
         $newSubscription = $this->subscriptionManager->renew($subscription);
 
-        $this->assertEquals(false, $subscription->isActive());
-        $this->assertEquals('RENEW_TEXT', $subscription->getReason());
+        $this->assertSame($subscription, $newSubscription);
+        $this->assertSame($product, $newSubscription->getProduct());
+        $this->assertSame($subscription->getUser(), $newSubscription->getUser());
 
         $this->assertEquals(true, $newSubscription->isActive());
         $this->assertEquals(true, $newSubscription->isAutoRenewal());
-        $this->assertSame($product, $newSubscription->getProduct());
-        $this->assertSame($subscription->getUser(), $newSubscription->getUser());
+        $this->assertEquals(true, $newSubscription->isRenewed());
     }
 
     public function testRenewSubscriptionWithDifferentProduct()
     {
+        // next product
+        $nextProduct = \Mockery::mock(ProductInterface::class);
+        $nextProduct->shouldReceive('getName')->andReturn('Next product');
+        $nextProduct->shouldReceive('getDuration')->andReturn($this->interval1m);
+        $nextProduct->shouldReceive('isDefault')->andReturn(false);
+        $nextProduct->shouldReceive('isDisabled')->andReturn(false);
+        $nextProduct->shouldReceive('getExpirationDate')->andReturn(null);
+        $nextProduct->shouldReceive('getQuota')->andReturn(null);
+        $nextProduct->shouldReceive('isAutoRenewal')->andReturn(true);
+        $nextProduct->shouldReceive('getNextRenewalProduct')->andReturn(null);
+        $nextProduct->shouldReceive('getStrategy')->andReturn('end_last_default');
+
         // product
         $product = \Mockery::mock(ProductInterface::class);
         $product->shouldReceive('getName')->andReturn('Test non-default product without quota exceeded');
@@ -308,10 +316,7 @@ class SubscriptionManagerTest extends AbstractTestCaseBase
         $product->shouldReceive('getExpirationDate')->andReturn(null);
         $product->shouldReceive('getQuota')->andReturn(null);
         $product->shouldReceive('isAutoRenewal')->andReturn(true);
-        $product->shouldReceive('getNextRenewalProduct')->andReturn($this->product); // This is the important step
-
-        // add to the default product strategy name
-        //$this->product->shouldReceive('getStrategy')->andReturn('end_last_default');
+        $product->shouldReceive('getNextRenewalProduct')->andReturn($nextProduct); // This is the important step
 
         // subscription to renew
         $subscription = new SubscriptionMock();
@@ -321,40 +326,55 @@ class SubscriptionManagerTest extends AbstractTestCaseBase
         $subscription->setEndDate(new \DateTimeImmutable());
 
         // no current active subscriptions
-        $this->subscriptionRepository->shouldReceive('findSubscriptionsByProduct')->andReturn([]);
+        $this->subscriptionRepository->shouldReceive('findActiveSubscription')->andReturn(null);
 
         // renew subscription
         $newSubscription = $this->subscriptionManager->renew($subscription);
 
+        $this->assertNotSame($subscription, $newSubscription);
+
         $this->assertEquals(false, $subscription->isActive());
-        $this->assertEquals('RENEW_TEXT', $subscription->getReason());
+        $this->assertEquals(true, $subscription->isRenewed());
 
         $this->assertEquals(true, $newSubscription->isActive());
         $this->assertEquals(true, $newSubscription->isAutoRenewal());
-        $this->assertSame($this->product, $newSubscription->getProduct());
+        $this->assertSame($nextProduct, $newSubscription->getProduct());
+    }
+
+    public function testStopSubscriptionAutoRenew()
+    {
+        $subscription = new SubscriptionMock();
+        $subscription->setActive(true);
+        $subscription->setAutoRenewal(true);
+        $subscription->setProduct($this->product2);
+
+        $this->subscriptionManager->stopAutoRenew($subscription);
+
+        $this->assertEquals(true, $subscription->isActive());
+        $this->assertEquals(false, $subscription->isAutoRenewal());
     }
 
     public function testExpireSubscriptionNotEnableAtProduct()
     {
         $subscription = new SubscriptionMock();
         $subscription->setActive(true);
-        $subscription->setProduct($this->product);
+        $subscription->setProduct($this->product2);
 
         $this->subscriptionManager->expire($subscription);
 
-        $this->assertEquals(false, $subscription->getActive());
-        $this->assertEquals('EXPIRE_TEXT', $subscription->getReason());
+        $this->assertEquals(false, $subscription->isActive());
+        $this->assertEquals(true, $subscription->isExpired());
     }
 
     public function testCancelSubscription()
     {
         $subscription = new SubscriptionMock();
         $subscription->setActive(true);
-        $subscription->setProduct($this->product);
+        $subscription->setProduct($this->product2);
 
         $this->subscriptionManager->cancel($subscription);
 
-        $this->assertEquals(false, $subscription->getActive());
-        $this->assertEquals('CANCEL_TEXT', $subscription->getReason());
+        $this->assertEquals(false, $subscription->isActive());
+        $this->assertEquals(true, $subscription->isCancelled());
     }
 }

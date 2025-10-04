@@ -8,6 +8,7 @@ class UserMock implements UserInterface
 {
     public function getRoles(): array
     {
+        return [];
     }
 
     public function eraseCredentials(): void
